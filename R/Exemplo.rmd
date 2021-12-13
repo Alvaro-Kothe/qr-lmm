@@ -1,0 +1,175 @@
+---
+title: "Exemplo de qrLMM"
+author: "Álvaro Kothe"
+date: "`r Sys.Date()`"
+output:
+  rmdformats::downcute:
+    df_print: paged
+    downcute_theme: chaos
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, warning = F, message = F)
+library(kableExtra)
+
+my_kable <- function(x, ...) {
+    kable(x, ...) %>%
+        kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+}
+```
+
+# Exemplo do banco de dados Orthodont
+
+```{r}
+library(qrLMM)
+data("Orthodont")
+Orthodont
+```
+
+Alguns detalhes do pacote `qrLMM`:
+
+- Para fazer o ajuste use a função `QRLMM()` (Ele não aceita fórmulas do R)
+- É necessário definir `y`, `x`, `z`, `groups`
+    - `y` é o vetor resposta de dimensão $N$
+    - `x` é a matriz de delineamento com os efeitos fixos de dimensão $N \times p$
+    - `z` é a matriz de delineamento com os efeitos aleatórios de dimensão $N \times q$
+    - `groups` fator definindo a partição dos efeitos aleatórios de dimensão $N$
+- $N$ é o total de observações
+- $p$ é o número de efeitos fixos considerando o intercepto
+- $q$ é o número de efeitos aleatórios
+
+## Exemplo dos autores
+
+```{r}
+y  = Orthodont$distance #response
+x  = cbind(1,c(rep(0,64),rep(1,44)),Orthodont$age) #design matrix for fixed effects
+z  = cbind(1,Orthodont$age) #design matrix for random effects
+groups = Orthodont$Subject
+```
+
+Invés de definir na mão como os autores fizeram, poderia usar a função `model.matrix` para definir `x` e `z`
+
+```r
+x <- model.matrix(~ Sex + age, data = Orthodont)
+z <- model.matrix(~ age, data = Orthodont)
+```
+
+### Matrizes {.tabset}
+
+#### y
+
+```{r echo=FALSE}
+as.data.frame(y)
+```
+
+
+#### x
+
+```{r echo=FALSE}
+as.data.frame(x)
+```
+
+#### z
+
+```{r echo=FALSE}
+as.data.frame(z)
+```
+
+#### groups
+
+```{r echo=FALSE}
+as.data.frame(groups)
+```
+
+
+
+### Ajuste do modelo para a mediana utilizando o pacote `qrLMM`
+
+```{r qurtile-fit, cache=TRUE}
+model <- QRLMM(y,x,z,groups, p = c(.1, .5, .9), MaxIter = 50,
+               show.convergence = FALSE)
+```
+
+#### Predição
+
+```{r}
+predict_qrlmm <- function(model, x, z = NULL, groups = NULL){
+beta = model$res$beta  #fixed effects
+weights = model$res$weight  #random weights
+fixed = tcrossprod(x,t(beta))
+random = rep(0,dim(x)[1])  #initializing random shift
+
+if(!(is.null(z) || is.null(groups))) {
+    nj = c(as.data.frame(table(groups))[,2]) #obs per subject
+for (j in 1:length(nj)){ 
+  z1=matrix(z[(sum(nj[1:j-1])+1):(sum(nj[1:j])),],ncol=dim(z)[2])
+  random[(sum(nj[1:j-1])+1):(sum(nj[1:j]))] = tcrossprod(z1,t(weights[j,]))
+}
+}
+
+pred = fixed + random  #predictions
+
+pred
+}
+```
+
+```{r}
+pred_qrlmm_1 <- lapply(model, predict_qrlmm, x, z, groups)
+pred_qrlmm_0 <- lapply(model, predict_qrlmm, x)
+```
+
+### Ajuste do modelo utilizando o pacote `lqmm`
+
+```{r}
+library("lqmm")
+```
+
+```{r}
+fitOs.lqmm <- lqmm(distance ~ age, random = ~ age, group = Subject,
+	tau = c(0.1,0.5,0.9), cov = "pdDiag", data = Orthodont)
+```
+
+
+```{r}
+summary(fitOs.lqmm)
+```
+```{r}
+pred_lqmm_0 <- predict(fitOs.lqmm, level = 0)
+pred_lqmm_1 <- predict(fitOs.lqmm, level = 1)
+```
+
+
+
+### Comparação de ajuste entre os pacotes
+
+```{r}
+rho_tau <- function(u, tau) {
+    u * (tau - (u < 0))
+}
+
+taus = c(.1, .5, .9)
+
+purrr::map_df(list(
+    "qrLMM Fixo" = pred_qrlmm_0, 
+   "qrLMM Aleatório" =  pred_qrlmm_1,
+            "lqmm Fixo" = pred_lqmm_0, 
+   "lqmm Aleatório" = pred_lqmm_1), function(pred) {
+                res <- sapply(pred, function(x) {y - x})
+                erro <- colMeans(sapply(taus, rho_tau, u = res))
+                names(erro) <- taus
+                erro
+            }, .id = "Método")
+```
+
+```{r}
+library("ggplot2")
+library("latex2exp")
+
+ggplot(Orthodont, aes(age, distance)) +
+    geom_line() +
+    {purrr::map2(pred_qrlmm_0, as.character(taus), 
+                 ~geom_line(aes(y = .x, color = .y)))} +
+    facet_wrap(~Subject) +
+    labs(color = TeX("$\\tau$"))
+```
+

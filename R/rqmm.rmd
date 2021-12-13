@@ -1,0 +1,219 @@
+---
+title: "Regressão quantílica em modelos mistos"
+author: "Álvaro Kothe"
+date: "14/12/2021"
+output:
+  slidy_presentation: 
+    df_print: paged
+    highlight: kate
+  ioslides_presentation:
+    df_print: paged
+    highlight: kate
+    widescreen: yes
+    smalled: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.retina = 3, warning = FALSE, message = FALSE)
+
+library("ggplot2")
+library("latex2exp")
+library("qrLMM")
+library("lqmm")
+library("dplyr")
+library("purrr")
+library(RefManageR)
+library(glue)
+
+bib <- ReadBib("bib.bib")
+
+BibOptions(max.names = 2L, bib.style = "authoryear", check.entries = FALSE)
+
+theme_set(theme_classic())
+```
+
+## Regressão quantílica
+
+- Qualquer variável aleatória pode ser caracterizada pela sua função de distribuição acumulada $F(y) = P(Y \leq y)$;
+- Na regressão quantílica, a distribuição condicional da variável resposta é modelada;
+- Não assume-se a distribuição do resíduo;
+
+## Relação da Regressão quantílica e a distribuição Laplace Assimétrica (ALD)
+
+$Y$ possui distribuição $\mbox{ALD}(\mu, \sigma, p)$, com função de densidade
+\[f(y|\mu, \sigma, p) = \frac{p(1-p)}{\sigma} \exp 
+\left\{ 
+-\rho_p \left ( \frac{y - \mu}{\sigma}\right)
+\right\}\]
+
+- $\mu \in R$ é o parâmetro de locação;
+- $\sigma > 0$ é o parâmetro de escala;
+- $p \in (0, 1)$ é o parâmetro de assimetria;
+- $\rho_p(u) = u(p - I\{u < 0\})$ é a função de perda;
+
+
+## Parâmetro de assimetria da ALD
+
+```{r echo=FALSE}
+rho_tau <- function(u, tau) {
+    u * (tau - (u < 0))
+}
+
+dald <- function(y, mu, sigma, p) {
+    u <- (y - mu)/sigma
+    p * (1 - p) / sigma * exp(- rho_tau(y, p))
+}
+
+taus = c(.1, .25, .5, .83)
+
+ggplot() +
+    {map(taus, 
+         ~geom_function(aes(color = glue("ALD(0, 1, {.x})")), size = 3,
+                        fun = dald, args = list(mu = 0, sigma = 1, p = .x)))} +
+    lims(x = c(-4, 4)) +
+    labs(y = "Densidade", color = NULL) +
+    theme(legend.position = c(.15, .9),
+          text = element_text(size = 15, face = "bold"))
+```
+
+## Regressão quantílica em modelos mistos
+
+O modelo apresentado por `r Citet(bib, "qrlmm")` para o $p$-ésimo quantil condicional da variável resposta $y_{ij}$ é definido como:
+\[Q_p(y_{ij}|\boldsymbol{x_{ij}, b_i}) = \boldsymbol x_{ij}^T \boldsymbol \beta_p + \boldsymbol{z_{ij} b_i}\]
+
+para $i = 1, \dots, n$ e $j = 1, \dots, n_i$
+
+- $y_{ij}$ é a $j$-ésima medida do $i$-ésimo sujeito
+- $x_{ij}$ é um vetor de dimensão $1 \times k$
+- $\boldsymbol{z_{ij}}$ é um vetor de dimensão $q \times 1$
+- $Q_p$ é a função inversa de uma distribuição desconhecida $F(\cdot)$
+- $\boldsymbol \beta_p$ é o coeficiente de regressão dos efeitos fixos para o p-ésimo quantil com dimensão $k \times 1$
+- $\boldsymbol b_i$ são os efeitos aleatórios com distribuição $\boldsymbol b_i \sim N_q(\boldsymbol{0, \Psi})$
+
+## Regressão quantílica em modelos mistos
+
+Segundo `r Citet(bib, "qrlmm")` o resíduo tem uma distribuição $\mbox{ALD}(0, \sigma)$, e $y_{ij}| \boldsymbol b_i$ são independentes com distribuição ALD com densidade
+\[f(y|\mu, \sigma, p) = \frac{p(1-p)}{\sigma} \exp 
+\left\{ 
+-\rho_p \left ( \frac{y - 
+\boldsymbol x_{ij}^T \boldsymbol \beta_p - \boldsymbol{z_{ij} b_i}}{\sigma}\right)
+\right\}\]
+
+
+## Exemplo com o banco de dados `Orthodont`
+
+```{r}
+data("Orthodont")
+Orthodont
+```
+
+## Pacote `qrLMM`
+
+- Ajusta modelo de regressão quantílica utilizando algoritmo Stochastic-Approximation of the EM Algorithm (SAEM) para um único quantil
+- Basicamente só possui a função `QRLMM`
+    - Não possui método `predict()`, `summary()`, `print()`
+
+Argumentos da função `QRLMM()`:
+
+- `y` é o vetor resposta de dimensão $N$
+- `x` é a matriz de delineamento com os efeitos fixos de dimensão $N \times k$
+- `z` é a matriz de delineamento com os efeitos aleatórios de dimensão $N \times q$
+- `groups` fator definindo a partição dos efeitos aleatórios de dimensão $N$
+- `p` define o quantil ajustado
+
+## Exemplo dos autores
+
+```{r}
+y  = Orthodont$distance #response
+x  = cbind(1,c(rep(0,64),rep(1,44)),Orthodont$age) #design matrix for fixed effects
+z  = cbind(1,Orthodont$age) #design matrix for random effects
+groups = Orthodont$Subject
+```
+
+Invés de definir na mão como os autores fizeram, poderia usar a função `model.matrix` para definir `x` e `z`
+
+```r
+x <- model.matrix(~ Sex + age, data = Orthodont)
+z <- model.matrix(~ age, data = Orthodont)
+```
+
+### Matrizes
+
+#### y
+
+```{r echo=FALSE}
+as.data.frame(y)
+```
+
+
+#### x
+
+```{r echo=FALSE}
+as.data.frame(x)
+```
+
+#### z
+
+```{r echo=FALSE}
+as.data.frame(z)
+```
+
+#### groups
+
+```{r echo=FALSE}
+as.data.frame(groups)
+```
+
+
+## Ajuste do modelo para os quartis utilizando o pacote `qrLMM`
+
+```{r qurtile-fit, cache=TRUE}
+model <- QRLMM(y,x,z,groups, p = c(.1, .5, .9), MaxIter = 50,
+               show.convergence = FALSE)
+```
+
+## Predição para `QRLMM`
+
+
+```{r}
+predict_qrlmm <- function(model, x, z = NULL, groups = NULL){
+beta = model$res$beta  #fixed effects
+weights = model$res$weight  #random weights
+fixed = tcrossprod(x,t(beta))
+random = rep(0,dim(x)[1])  #initializing random shift
+
+if(!(is.null(z) || is.null(groups))) {
+    nj = c(as.data.frame(table(groups))[,2]) #obs per subject
+for (j in 1:length(nj)){ 
+  z1=matrix(z[(sum(nj[1:j-1])+1):(sum(nj[1:j])),],ncol=dim(z)[2])
+  random[(sum(nj[1:j-1])+1):(sum(nj[1:j]))] = tcrossprod(z1,t(weights[j,]))
+}
+}
+
+pred = fixed + random  #predictions
+
+pred
+}
+```
+
+
+```{r}
+pred_qrlmm_1 <- lapply(model, predict_qrlmm, x, z, groups)
+pred_qrlmm_0 <- lapply(model, predict_qrlmm, x)
+```
+
+
+## Pacote `lqmm`
+
+## Ajuste do modelo para os quartis utilizando o pacote `lqmm`
+
+## Comparação de ajuste
+
+## Gráfico de perfil com quantis
+
+## Referências
+
+```{r refs, echo=FALSE, results='asis'}
+PrintBibliography(bib)
+```
+

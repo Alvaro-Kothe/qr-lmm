@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Regressão quantílica em modelos mistos</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="Álvaro Kothe" />
+    <script src="rqmm_files/header-attrs-2.11/header-attrs.js"></script>
+    <link href="rqmm_files/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link rel="stylesheet" href="scrollable.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Regressão quantílica em modelos mistos
+### Álvaro Kothe
+### 14/12/2021
+
+---
+
+
+
+
+## Regressão quantílica
+
+- Qualquer variável aleatória pode ser caracterizada pela sua função de distribuição acumulada `\(F(y) = P(Y \leq y)\)`;
+- Na regressão quantílica, a distribuição condicional da variável resposta é modelada;
+- Não assume-se a distribuição do resíduo;
+
+## Relação da Regressão quantílica e a distribuição Laplace Assimétrica (ALD)
+
+`\(Y\)` possui distribuição `\(\mbox{ALD}(\mu, \sigma, p)\)`, com função de densidade
+\[f(y|\mu, \sigma, p) = \frac{p(1-p)}{\sigma} \exp 
+\left\{ 
+-\rho_p \left ( \frac{y - \mu}{\sigma}\right)
+\right\}\]
+
+- `\(\mu \in R\)` é o parâmetro de locação;
+- `\(\sigma &gt; 0\)` é o parâmetro de escala;
+- `\(p \in (0, 1)\)` é o parâmetro de assimetria;
+- `\(\rho_p(u) = u(p - I\{u &lt; 0\})\)` é a função de perda;
+
+
+## Parâmetro de assimetria da ALD
+
+&lt;img src="rqmm_files/figure-html/unnamed-chunk-1-1.png" width="504" /&gt;
+
+## Regressão quantílica em modelos mistos
+
+O modelo apresentado por Galarza, Lachos, and Bandyopadhyay (2016) para o `\(p\)`-ésimo quantil condicional da variável resposta `\(y_{ij}\)` é definido como:
+\[Q_p(y_{ij}|\boldsymbol{x_{ij}, b_i}) = \boldsymbol x_{ij}^T \boldsymbol \beta_p + \boldsymbol{z_{ij} b_i}\]
+
+para `\(i = 1, \dots, n\)` e `\(j = 1, \dots, n_i\)`
+
+- `\(y_{ij}\)` é a `\(j\)`-ésima medida do `\(i\)`-ésimo sujeito
+- `\(x_{ij}\)` é um vetor de dimensão `\(1 \times k\)`
+- `\(\boldsymbol{z_{ij}}\)` é um vetor de dimensão `\(q \times 1\)`
+- `\(Q_p\)` é a função inversa de uma distribuição desconhecida `\(F(\cdot)\)`
+- `\(\boldsymbol \beta_p\)` é o coeficiente de regressão dos efeitos fixos para o p-ésimo quantil com dimensão `\(k \times 1\)`
+- `\(\boldsymbol b_i\)` são os efeitos aleatórios com distribuição `\(\boldsymbol b_i \sim N_q(\boldsymbol{0, \Psi})\)`
+
+## Regressão quantílica em modelos mistos
+
+Segundo Galarza Lachos et al. (2016) o resíduo tem uma distribuição `\(\mbox{ALD}(0, \sigma)\)`, e `\(y_{ij}| \boldsymbol b_i\)` são independentes com distribuição ALD com densidade
+\[f(y|\mu, \sigma, p) = \frac{p(1-p)}{\sigma} \exp 
+\left\{ 
+-\rho_p \left ( \frac{y - 
+\boldsymbol x_{ij}^T \boldsymbol \beta_p - \boldsymbol{z_{ij} b_i}}{\sigma}\right)
+\right\}\]
+
+
+## Exemplo com o banco de dados `Orthodont`
+
+
+```r
+data("Orthodont")
+Orthodont
+```
+
+```
+## Grouped Data: distance ~ age | Subject
+##     distance age Subject    Sex
+## 1       26.0   8     M01   Male
+## 2       25.0  10     M01   Male
+## 3       29.0  12     M01   Male
+## 4       31.0  14     M01   Male
+## 5       21.5   8     M02   Male
+## 6       22.5  10     M02   Male
+## 7       23.0  12     M02   Male
+## 8       26.5  14     M02   Male
+## 9       23.0   8     M03   Male
+## 10      22.5  10     M03   Male
+## 11      24.0  12     M03   Male
+## 12      27.5  14     M03   Male
+## 13      25.5   8     M04   Male
+## 14      27.5  10     M04   Male
+## 15      26.5  12     M04   Male
+## 16      27.0  14     M04   Male
+## 17      20.0   8     M05   Male
+## 18      23.5  10     M05   Male
+## 19      22.5  12     M05   Male
+## 20      26.0  14     M05   Male
+## 21      24.5   8     M06   Male
+## 22      25.5  10     M06   Male
+## 23      27.0  12     M06   Male
+## 24      28.5  14     M06   Male
+## 25      22.0   8     M07   Male
+## 26      22.0  10     M07   Male
+## 27      24.5  12     M07   Male
+## 28      26.5  14     M07   Male
+## 29      24.0   8     M08   Male
+## 30      21.5  10     M08   Male
+## 31      24.5  12     M08   Male
+## 32      25.5  14     M08   Male
+## 33      23.0   8     M09   Male
+## 34      20.5  10     M09   Male
+## 35      31.0  12     M09   Male
+## 36      26.0  14     M09   Male
+## 37      27.5   8     M10   Male
+## 38      28.0  10     M10   Male
+## 39      31.0  12     M10   Male
+## 40      31.5  14     M10   Male
+## 41      23.0   8     M11   Male
+## 42      23.0  10     M11   Male
+## 43      23.5  12     M11   Male
+## 44      25.0  14     M11   Male
+## 45      21.5   8     M12   Male
+## 46      23.5  10     M12   Male
+## 47      24.0  12     M12   Male
+## 48      28.0  14     M12   Male
+## 49      17.0   8     M13   Male
+## 50      24.5  10     M13   Male
+## 51      26.0  12     M13   Male
+## 52      29.5  14     M13   Male
+## 53      22.5   8     M14   Male
+## 54      25.5  10     M14   Male
+## 55      25.5  12     M14   Male
+## 56      26.0  14     M14   Male
+## 57      23.0   8     M15   Male
+## 58      24.5  10     M15   Male
+## 59      26.0  12     M15   Male
+## 60      30.0  14     M15   Male
+## 61      22.0   8     M16   Male
+## 62      21.5  10     M16   Male
+## 63      23.5  12     M16   Male
+## 64      25.0  14     M16   Male
+## 65      21.0   8     F01 Female
+## 66      20.0  10     F01 Female
+## 67      21.5  12     F01 Female
+## 68      23.0  14     F01 Female
+## 69      21.0   8     F02 Female
+## 70      21.5  10     F02 Female
+## 71      24.0  12     F02 Female
+## 72      25.5  14     F02 Female
+## 73      20.5   8     F03 Female
+## 74      24.0  10     F03 Female
+## 75      24.5  12     F03 Female
+## 76      26.0  14     F03 Female
+## 77      23.5   8     F04 Female
+## 78      24.5  10     F04 Female
+## 79      25.0  12     F04 Female
+## 80      26.5  14     F04 Female
+## 81      21.5   8     F05 Female
+## 82      23.0  10     F05 Female
+## 83      22.5  12     F05 Female
+## 84      23.5  14     F05 Female
+## 85      20.0   8     F06 Female
+## 86      21.0  10     F06 Female
+## 87      21.0  12     F06 Female
+## 88      22.5  14     F06 Female
+## 89      21.5   8     F07 Female
+## 90      22.5  10     F07 Female
+## 91      23.0  12     F07 Female
+## 92      25.0  14     F07 Female
+## 93      23.0   8     F08 Female
+## 94      23.0  10     F08 Female
+## 95      23.5  12     F08 Female
+## 96      24.0  14     F08 Female
+## 97      20.0   8     F09 Female
+## 98      21.0  10     F09 Female
+## 99      22.0  12     F09 Female
+## 100     21.5  14     F09 Female
+## 101     16.5   8     F10 Female
+## 102     19.0  10     F10 Female
+## 103     19.0  12     F10 Female
+## 104     19.5  14     F10 Female
+## 105     24.5   8     F11 Female
+## 106     25.0  10     F11 Female
+## 107     28.0  12     F11 Female
+## 108     28.0  14     F11 Female
+```
+
+## Pacote `qrLMM`
+
+- Ajusta modelo de regressão quantílica utilizando algoritmo Stochastic-Approximation of the EM Algorithm (SAEM) para um único quantil
+- Basicamente só possui a função `QRLMM`
+    - Não possui método `predict()`, `summary()`, `print()`
+
+Argumentos da função `QRLMM()`:
+
+- `y` é o vetor resposta de dimensão `\(N\)`
+- `x` é a matriz de delineamento com os efeitos fixos de dimensão `\(N \times k\)`
+- `z` é a matriz de delineamento com os efeitos aleatórios de dimensão `\(N \times q\)`
+- `groups` fator definindo a partição dos efeitos aleatórios de dimensão `\(N\)`
+- `p` define o quantil ajustado
+
+## Exemplo dos autores
+
+
+```r
+y  = Orthodont$distance #response
+x  = cbind(1,c(rep(0,64),rep(1,44)),Orthodont$age) #design matrix for fixed effects
+z  = cbind(1,Orthodont$age) #design matrix for random effects
+groups = Orthodont$Subject
+```
+
+Invés de definir na mão como os autores fizeram, poderia usar a função `model.matrix` para definir `x` e `z`
+
+```r
+x &lt;- model.matrix(~ Sex + age, data = Orthodont)
+z &lt;- model.matrix(~ age, data = Orthodont)
+```
+
+### Matrizes
+
+#### y
+
+
+```
+##        y
+## 1   26.0
+## 2   25.0
+## 3   29.0
+## 4   31.0
+## 5   21.5
+## 6   22.5
+## 7   23.0
+## 8   26.5
+## 9   23.0
+## 10  22.5
+## 11  24.0
+## 12  27.5
+## 13  25.5
+## 14  27.5
+## 15  26.5
+## 16  27.0
+## 17  20.0
+## 18  23.5
+## 19  22.5
+## 20  26.0
+## 21  24.5
+## 22  25.5
+## 23  27.0
+## 24  28.5
+## 25  22.0
+## 26  22.0
+## 27  24.5
+## 28  26.5
+## 29  24.0
+## 30  21.5
+## 31  24.5
+## 32  25.5
+## 33  23.0
+## 34  20.5
+## 35  31.0
+## 36  26.0
+## 37  27.5
+## 38  28.0
+## 39  31.0
+## 40  31.5
+## 41  23.0
+## 42  23.0
+## 43  23.5
+## 44  25.0
+## 45  21.5
+## 46  23.5
+## 47  24.0
+## 48  28.0
+## 49  17.0
+## 50  24.5
+## 51  26.0
+## 52  29.5
+## 53  22.5
+## 54  25.5
+## 55  25.5
+## 56  26.0
+## 57  23.0
+## 58  24.5
+## 59  26.0
+## 60  30.0
+## 61  22.0
+## 62  21.5
+## 63  23.5
+## 64  25.0
+## 65  21.0
+## 66  20.0
+## 67  21.5
+## 68  23.0
+## 69  21.0
+## 70  21.5
+## 71  24.0
+## 72  25.5
+## 73  20.5
+## 74  24.0
+## 75  24.5
+## 76  26.0
+## 77  23.5
+## 78  24.5
+## 79  25.0
+## 80  26.5
+## 81  21.5
+## 82  23.0
+## 83  22.5
+## 84  23.5
+## 85  20.0
+## 86  21.0
+## 87  21.0
+## 88  22.5
+## 89  21.5
+## 90  22.5
+## 91  23.0
+## 92  25.0
+## 93  23.0
+## 94  23.0
+## 95  23.5
+## 96  24.0
+## 97  20.0
+## 98  21.0
+## 99  22.0
+## 100 21.5
+## 101 16.5
+## 102 19.0
+## 103 19.0
+## 104 19.5
+## 105 24.5
+## 106 25.0
+## 107 28.0
+## 108 28.0
+```
+
+
+#### x
+
+
+```
+##     V1 V2 V3
+## 1    1  0  8
+## 2    1  0 10
+## 3    1  0 12
+## 4    1  0 14
+## 5    1  0  8
+## 6    1  0 10
+## 7    1  0 12
+## 8    1  0 14
+## 9    1  0  8
+## 10   1  0 10
+## 11   1  0 12
+## 12   1  0 14
+## 13   1  0  8
+## 14   1  0 10
+## 15   1  0 12
+## 16   1  0 14
+## 17   1  0  8
+## 18   1  0 10
+## 19   1  0 12
+## 20   1  0 14
+## 21   1  0  8
+## 22   1  0 10
+## 23   1  0 12
+## 24   1  0 14
+## 25   1  0  8
+## 26   1  0 10
+## 27   1  0 12
+## 28   1  0 14
+## 29   1  0  8
+## 30   1  0 10
+## 31   1  0 12
+## 32   1  0 14
+## 33   1  0  8
+## 34   1  0 10
+## 35   1  0 12
+## 36   1  0 14
+## 37   1  0  8
+## 38   1  0 10
+## 39   1  0 12
+## 40   1  0 14
+## 41   1  0  8
+## 42   1  0 10
+## 43   1  0 12
+## 44   1  0 14
+## 45   1  0  8
+## 46   1  0 10
+## 47   1  0 12
+## 48   1  0 14
+## 49   1  0  8
+## 50   1  0 10
+## 51   1  0 12
+## 52   1  0 14
+## 53   1  0  8
+## 54   1  0 10
+## 55   1  0 12
+## 56   1  0 14
+## 57   1  0  8
+## 58   1  0 10
+## 59   1  0 12
+## 60   1  0 14
+## 61   1  0  8
+## 62   1  0 10
+## 63   1  0 12
+## 64   1  0 14
+## 65   1  1  8
+## 66   1  1 10
+## 67   1  1 12
+## 68   1  1 14
+## 69   1  1  8
+## 70   1  1 10
+## 71   1  1 12
+## 72   1  1 14
+## 73   1  1  8
+## 74   1  1 10
+## 75   1  1 12
+## 76   1  1 14
+## 77   1  1  8
+## 78   1  1 10
+## 79   1  1 12
+## 80   1  1 14
+## 81   1  1  8
+## 82   1  1 10
+## 83   1  1 12
+## 84   1  1 14
+## 85   1  1  8
+## 86   1  1 10
+## 87   1  1 12
+## 88   1  1 14
+## 89   1  1  8
+## 90   1  1 10
+## 91   1  1 12
+## 92   1  1 14
+## 93   1  1  8
+## 94   1  1 10
+## 95   1  1 12
+## 96   1  1 14
+## 97   1  1  8
+## 98   1  1 10
+## 99   1  1 12
+## 100  1  1 14
+## 101  1  1  8
+## 102  1  1 10
+## 103  1  1 12
+## 104  1  1 14
+## 105  1  1  8
+## 106  1  1 10
+## 107  1  1 12
+## 108  1  1 14
+```
+
+#### z
+
+
+```
+##     V1 V2
+## 1    1  8
+## 2    1 10
+## 3    1 12
+## 4    1 14
+## 5    1  8
+## 6    1 10
+## 7    1 12
+## 8    1 14
+## 9    1  8
+## 10   1 10
+## 11   1 12
+## 12   1 14
+## 13   1  8
+## 14   1 10
+## 15   1 12
+## 16   1 14
+## 17   1  8
+## 18   1 10
+## 19   1 12
+## 20   1 14
+## 21   1  8
+## 22   1 10
+## 23   1 12
+## 24   1 14
+## 25   1  8
+## 26   1 10
+## 27   1 12
+## 28   1 14
+## 29   1  8
+## 30   1 10
+## 31   1 12
+## 32   1 14
+## 33   1  8
+## 34   1 10
+## 35   1 12
+## 36   1 14
+## 37   1  8
+## 38   1 10
+## 39   1 12
+## 40   1 14
+## 41   1  8
+## 42   1 10
+## 43   1 12
+## 44   1 14
+## 45   1  8
+## 46   1 10
+## 47   1 12
+## 48   1 14
+## 49   1  8
+## 50   1 10
+## 51   1 12
+## 52   1 14
+## 53   1  8
+## 54   1 10
+## 55   1 12
+## 56   1 14
+## 57   1  8
+## 58   1 10
+## 59   1 12
+## 60   1 14
+## 61   1  8
+## 62   1 10
+## 63   1 12
+## 64   1 14
+## 65   1  8
+## 66   1 10
+## 67   1 12
+## 68   1 14
+## 69   1  8
+## 70   1 10
+## 71   1 12
+## 72   1 14
+## 73   1  8
+## 74   1 10
+## 75   1 12
+## 76   1 14
+## 77   1  8
+## 78   1 10
+## 79   1 12
+## 80   1 14
+## 81   1  8
+## 82   1 10
+## 83   1 12
+## 84   1 14
+## 85   1  8
+## 86   1 10
+## 87   1 12
+## 88   1 14
+## 89   1  8
+## 90   1 10
+## 91   1 12
+## 92   1 14
+## 93   1  8
+## 94   1 10
+## 95   1 12
+## 96   1 14
+## 97   1  8
+## 98   1 10
+## 99   1 12
+## 100  1 14
+## 101  1  8
+## 102  1 10
+## 103  1 12
+## 104  1 14
+## 105  1  8
+## 106  1 10
+## 107  1 12
+## 108  1 14
+```
+
+#### groups
+
+
+```
+##     groups
+## 1      M01
+## 2      M01
+## 3      M01
+## 4      M01
+## 5      M02
+## 6      M02
+## 7      M02
+## 8      M02
+## 9      M03
+## 10     M03
+## 11     M03
+## 12     M03
+## 13     M04
+## 14     M04
+## 15     M04
+## 16     M04
+## 17     M05
+## 18     M05
+## 19     M05
+## 20     M05
+## 21     M06
+## 22     M06
+## 23     M06
+## 24     M06
+## 25     M07
+## 26     M07
+## 27     M07
+## 28     M07
+## 29     M08
+## 30     M08
+## 31     M08
+## 32     M08
+## 33     M09
+## 34     M09
+## 35     M09
+## 36     M09
+## 37     M10
+## 38     M10
+## 39     M10
+## 40     M10
+## 41     M11
+## 42     M11
+## 43     M11
+## 44     M11
+## 45     M12
+## 46     M12
+## 47     M12
+## 48     M12
+## 49     M13
+## 50     M13
+## 51     M13
+## 52     M13
+## 53     M14
+## 54     M14
+## 55     M14
+## 56     M14
+## 57     M15
+## 58     M15
+## 59     M15
+## 60     M15
+## 61     M16
+## 62     M16
+## 63     M16
+## 64     M16
+## 65     F01
+## 66     F01
+## 67     F01
+## 68     F01
+## 69     F02
+## 70     F02
+## 71     F02
+## 72     F02
+## 73     F03
+## 74     F03
+## 75     F03
+## 76     F03
+## 77     F04
+## 78     F04
+## 79     F04
+## 80     F04
+## 81     F05
+## 82     F05
+## 83     F05
+## 84     F05
+## 85     F06
+## 86     F06
+## 87     F06
+## 88     F06
+## 89     F07
+## 90     F07
+## 91     F07
+## 92     F07
+## 93     F08
+## 94     F08
+## 95     F08
+## 96     F08
+## 97     F09
+## 98     F09
+## 99     F09
+## 100    F09
+## 101    F10
+## 102    F10
+## 103    F10
+## 104    F10
+## 105    F11
+## 106    F11
+## 107    F11
+## 108    F11
+```
+
+
+## Ajuste do modelo para os quartis utilizando o pacote `qrLMM`
+
+
+```r
+model &lt;- QRLMM(y,x,z,groups, p = c(.1, .5, .9), MaxIter = 50,
+               show.convergence = FALSE)
+```
+
+```
+## 
+## ---------------------------------------------------
+## Quantile Regression for Linear Mixed Model
+## ---------------------------------------------------
+## 
+## Quantile = 0.1 0.5 0.9
+## Subjects = 27 ; Observations = 108 ; Balanced = 4
+## 
+## -----------
+## Estimates
+## -----------
+## 
+## - Fixed effects 
+## 
+##        Estimate Std. Error Inf CI95% Sup CI95%  z value Pr(&gt;|z|)
+## beta 1 15.58537    0.76686  14.08232  17.08842 20.32354        0
+## beta 2 -2.23681    0.39225  -3.00562  -1.46800 -5.70252        0
+## beta 3  0.63187    0.07542   0.48406   0.77969  8.37852        0
+## 
+## sigma = 0.19683 
+## 
+## Random effects Variance-Covariance Matrix matrix 
+##         z1      z2
+## z1 0.58826 0.02975
+## z2 0.02975 0.02237
+## 
+## ------------------------
+## Model selection criteria
+## ------------------------
+## 
+##         Loglik     AIC     BIC      HQ
+## Value -229.081 472.163 490.938 479.775
+## 
+## -------
+## Details
+## -------
+## 
+## Convergence reached? = FALSE
+## Iterations = 50 / 50
+## Criteria = 0.01547
+## MC sample = 10
+## Cut point = 0.25
+## Processing time = 22.71759 secs
+## ---------------------------------------------------
+## Quantile Regression for Linear Mixed Model
+## ---------------------------------------------------
+## 
+## Quantile = 0.1 0.5 0.9
+## Subjects = 27 ; Observations = 108 ; Balanced = 4
+## 
+## -----------
+## Estimates
+## -----------
+## 
+## - Fixed effects 
+## 
+##        Estimate Std. Error Inf CI95% Sup CI95%  z value Pr(&gt;|z|)
+## beta 1 18.43811    0.57524  17.31063  19.56558 32.05284    0e+00
+## beta 2 -2.15451    0.52041  -3.17452  -1.13450 -4.14000    3e-05
+## beta 3  0.57937    0.04724   0.48679   0.67196 12.26542    0e+00
+## 
+## sigma = 0.45668 
+## 
+## Random effects Variance-Covariance Matrix matrix 
+##          z1       z2
+## z1  0.67730 -0.04776
+## z2 -0.04776  0.03174
+## 
+## ------------------------
+## Model selection criteria
+## ------------------------
+## 
+##        Loglik     AIC     BIC      HQ
+## Value -215.27 444.541 463.315 452.153
+## 
+## -------
+## Details
+## -------
+## 
+## Convergence reached? = FALSE
+## Iterations = 50 / 50
+## Criteria = 0.00863
+## MC sample = 10
+## Cut point = 0.25
+## Processing time = 21.62384 secs
+## ---------------------------------------------------
+## Quantile Regression for Linear Mixed Model
+## ---------------------------------------------------
+## 
+## Quantile = 0.1 0.5 0.9
+## Subjects = 27 ; Observations = 108 ; Balanced = 4
+## 
+## -----------
+## Estimates
+## -----------
+## 
+## - Fixed effects 
+## 
+##        Estimate Std. Error Inf CI95% Sup CI95%  z value Pr(&gt;|z|)
+## beta 1 20.00352    1.08090  17.88496  22.12208 18.50638        0
+## beta 2 -2.43400    0.50124  -3.41643  -1.45157 -4.85594        0
+## beta 3  0.72854    0.08878   0.55454   0.90255  8.20643        0
+## 
+## sigma = 0.16257 
+## 
+## Random effects Variance-Covariance Matrix matrix 
+##          z1       z2
+## z1  4.34008 -0.20402
+## z2 -0.20402  0.05299
+## 
+## ------------------------
+## Model selection criteria
+## ------------------------
+## 
+##         Loglik     AIC    BIC      HQ
+## Value -227.818 469.635 488.41 477.248
+## 
+## -------
+## Details
+## -------
+## 
+## Convergence reached? = FALSE
+## Iterations = 50 / 50
+## Criteria = 0.0024
+## MC sample = 10
+## Cut point = 0.25
+## Processing time = 21.27927 secs
+```
+
+&lt;img src="rqmm_files/figure-html/qurtile-fit-1.png" width="504" /&gt;
+
+## Referências
+
+Galarza, C. E., V. H. Lachos, et al. (2016). "Quantile Regression for
+Linear Mixed Models: A Stochastic Approximation EM approach". In:
+_Statistics and its interface_ 10. DOI: 10.4310/SII.2017.v10.n3.a10.
+
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"navigation": {
+"scroll": true
+}
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
