@@ -10,10 +10,10 @@
 - [x] Utilizar a base de dados `Orthodont`
 - [x] Falar sobre a base
 - [x] Utilizar o pacote `qrLMM`
-- [ ] Utilizar o pacote `lqmm`
-- [ ] Comparar os pacotes
-- [ ] Comparar a qualidade de ajuste entre os pacotes
-- [ ] Apresentar gráficos
-  - [ ] da variação do $\beta$ pelo quantil
-  - [ ] Gráfico de perfil (para cada indivíduo), no eixo y a distância e no eixo x a idade. Apresentar o gráfico com o valor verdadeiro e os quantis ajustados.
-- [ ] Interpretar os coeficientes
+- [x] Utilizar o pacote `lqmm`
+- [x] Comparar os pacotes
+- [x] Comparar a qualidade de ajuste entre os pacotes
+- Apresentar gráficos
+  - [x] da variação do $\beta$ pelo quantil
+  - [x] Gráfico de perfil (para cada indivíduo), no eixo y a distância e no eixo x a idade. Apresentar o gráfico com o valor verdadeiro e os quantis ajustados.
+- [x] Interpretar os coeficientes (Falar)

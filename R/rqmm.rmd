@@ -6,39 +6,70 @@ output:
   slidy_presentation: 
     df_print: paged
     highlight: kate
-  ioslides_presentation:
-    df_print: paged
-    highlight: kate
-    widescreen: yes
-    smalled: yes
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(fig.retina = 3, warning = FALSE, message = FALSE)
 
-library("ggplot2")
-library("latex2exp")
-library("qrLMM")
-library("lqmm")
-library("dplyr")
-library("purrr")
+library(ggplot2)
+library(gridExtra)
+library(latex2exp)
+library(qrLMM)
+library(lqmm)
+library(dplyr)
+library(purrr)
 library(RefManageR)
 library(glue)
+library(quantreg)
 
 bib <- ReadBib("bib.bib")
 
 BibOptions(max.names = 2L, bib.style = "authoryear", check.entries = FALSE)
 
-theme_set(theme_classic())
+theme_set(theme_bw())
 ```
 
 ## Regressão quantílica
 
 - Qualquer variável aleatória pode ser caracterizada pela sua função de distribuição acumulada $F(y) = P(Y \leq y)$;
-- Na regressão quantílica, a distribuição condicional da variável resposta é modelada;
-- Não assume-se a distribuição do resíduo;
+- Na regressão quantílica, é possível caracterizar toda a distribuição condicional da variável resposta;
+- Robusto a valores discrepantes e a especificação incorreta da distribuição dos erros;
 
-## Relação da Regressão quantílica e a distribuição Laplace Assimétrica (ALD)
+## Exemplo de robustez da regressão quantílica
+
+```{r}
+data("engel")
+
+engel
+```
+
+Gasto em comida muito acima dos outros
+```{r}
+engel %>% filter(foodexp > 2000)
+```
+
+Criando um valor discrepante e comparando o valor dos coeficientes
+```{r}
+engel_o <- engel %>% mutate(foodexp = ifelse(foodexp > 2000, 99999, foodexp))
+
+lm1 <- lm(foodexp ~ income, data = engel)
+lm2 <- lm(foodexp ~ income, data = engel_o)
+
+rq1 <- rq(foodexp ~ income, tau = .5, data = engel)
+rq2 <- rq(foodexp ~ income, tau = .5, data = engel_o)
+```
+
+```{r}
+cbind(
+  "Linear S/ Outlier" = coef(lm1), "Linear C/ Outlier" = coef(lm2),
+  "RQ S/ Outlier" = coef(rq1), "RQ C/ Outlier" = coef(rq2)
+)
+```
+
+
+
+
+## Distribuição Laplace Assimétrica (ALD)
 
 $Y$ possui distribuição $\mbox{ALD}(\mu, \sigma, p)$, com função de densidade
 \[f(y|\mu, \sigma, p) = \frac{p(1-p)}{\sigma} \exp 
@@ -56,24 +87,34 @@ $Y$ possui distribuição $\mbox{ALD}(\mu, \sigma, p)$, com função de densidad
 
 ```{r echo=FALSE}
 rho_tau <- function(u, tau) {
-    u * (tau - (u < 0))
+  u * (tau - (u < 0))
 }
 
 dald <- function(y, mu, sigma, p) {
-    u <- (y - mu)/sigma
-    p * (1 - p) / sigma * exp(- rho_tau(y, p))
+  u <- (y - mu) / sigma
+  p * (1 - p) / sigma * exp(-rho_tau(y, p))
 }
 
-taus = c(.1, .25, .5, .83)
+taus <- c(.1, .25, .5, .83)
 
 ggplot() +
-    {map(taus, 
-         ~geom_function(aes(color = glue("ALD(0, 1, {.x})")), size = 3,
-                        fun = dald, args = list(mu = 0, sigma = 1, p = .x)))} +
-    lims(x = c(-4, 4)) +
-    labs(y = "Densidade", color = NULL) +
-    theme(legend.position = c(.15, .9),
-          text = element_text(size = 15, face = "bold"))
+  {
+    map(
+      taus,
+      ~ geom_function(aes(color = glue("ALD(0, 1, {.x})")),
+        size = 3,
+        fun = dald, args = list(mu = 0, sigma = 1, p = .x)
+      )
+    )
+  } +
+  lims(x = c(-4, 4)) +
+  labs(y = "Densidade", color = NULL) +
+  theme(
+    legend.position = c(.15, .9),
+    text = element_text(size = 15, face = "bold"),
+    legend.background = element_blank(),
+    legend.key = element_blank()
+  )
 ```
 
 ## Regressão quantílica em modelos mistos
@@ -90,7 +131,6 @@ para $i = 1, \dots, n$ e $j = 1, \dots, n_i$
 - $\boldsymbol \beta_p$ é o coeficiente de regressão dos efeitos fixos para o p-ésimo quantil com dimensão $k \times 1$
 - $\boldsymbol b_i$ são os efeitos aleatórios com distribuição $\boldsymbol b_i \sim N_q(\boldsymbol{0, \Psi})$
 
-## Regressão quantílica em modelos mistos
 
 Segundo `r Citet(bib, "qrlmm")` o resíduo tem uma distribuição $\mbox{ALD}(0, \sigma)$, e $y_{ij}| \boldsymbol b_i$ são independentes com distribuição ALD com densidade
 \[f(y|\mu, \sigma, p) = \frac{p(1-p)}{\sigma} \exp 
@@ -104,6 +144,12 @@ Segundo `r Citet(bib, "qrlmm")` o resíduo tem uma distribuição $\mbox{ALD}(0,
 
 ```{r}
 data("Orthodont")
+
+Orthodont$Subject <- factor(
+  Orthodont$Subject,
+  sort(unique(as.character(Orthodont$Subject)))
+)
+
 Orthodont
 ```
 
@@ -113,7 +159,7 @@ Orthodont
 - Basicamente só possui a função `QRLMM`
     - Não possui método `predict()`, `summary()`, `print()`
 
-Argumentos da função `QRLMM()`:
+Argumentos da função `QRLMM(y,x,z,groups,p=0.5)`:
 
 - `y` é o vetor resposta de dimensão $N$
 - `x` é a matriz de delineamento com os efeitos fixos de dimensão $N \times k$
@@ -124,17 +170,17 @@ Argumentos da função `QRLMM()`:
 ## Exemplo dos autores
 
 ```{r}
-y  = Orthodont$distance #response
-x  = cbind(1,c(rep(0,64),rep(1,44)),Orthodont$age) #design matrix for fixed effects
-z  = cbind(1,Orthodont$age) #design matrix for random effects
-groups = Orthodont$Subject
+y <- Orthodont$distance # response
+x <- cbind(1, c(rep(0, 64), rep(1, 44)), Orthodont$age) # design matrix for fixed effects
+z <- cbind(1, Orthodont$age) # design matrix for random effects
+groups <- Orthodont$Subject
 ```
 
-Invés de definir na mão como os autores fizeram, poderia usar a função `model.matrix` para definir `x` e `z`
+Invés de definir na mão como os autores fizeram, poderia usar a função `model.matrix` para definir `x` e `z`.
 
 ```r
 x <- model.matrix(~ Sex + age, data = Orthodont)
-z <- model.matrix(~ age, data = Orthodont)
+z <- model.matrix(~age, data = Orthodont)
 ```
 
 ### Matrizes
@@ -165,55 +211,191 @@ as.data.frame(groups)
 ```
 
 
-## Ajuste do modelo para os quartis utilizando o pacote `qrLMM`
+## Ajuste do modelo para os quantis 10\%, 50\% e 90\% utilizando o pacote `qrLMM`
 
 ```{r qurtile-fit, cache=TRUE}
-model <- QRLMM(y,x,z,groups, p = c(.1, .5, .9), MaxIter = 50,
-               show.convergence = FALSE)
+taus <- c(.1, .5, .9)
+
+fit_qrlmm <- QRLMM(y, x, z, groups,
+  p = taus, MaxIter = 50,
+  show.convergence = FALSE
+)
 ```
 
 ## Predição para `QRLMM`
 
+Os autores não definiram um método `predict`, por isso devemos devemos calcular as estimativas manualmente.
 
 ```{r}
-predict_qrlmm <- function(model, x, z = NULL, groups = NULL){
-beta = model$res$beta  #fixed effects
-weights = model$res$weight  #random weights
-fixed = tcrossprod(x,t(beta))
-random = rep(0,dim(x)[1])  #initializing random shift
+predict_qrlmm <- function(model, x, z = NULL, groups = NULL) {
+  beta <- model$res$beta # fixed effects
+  weights <- model$res$weight # random weights
+  fixed <- tcrossprod(x, t(beta))
+  random <- rep(0, dim(x)[1]) # initializing random shift
 
-if(!(is.null(z) || is.null(groups))) {
-    nj = c(as.data.frame(table(groups))[,2]) #obs per subject
-for (j in 1:length(nj)){ 
-  z1=matrix(z[(sum(nj[1:j-1])+1):(sum(nj[1:j])),],ncol=dim(z)[2])
-  random[(sum(nj[1:j-1])+1):(sum(nj[1:j]))] = tcrossprod(z1,t(weights[j,]))
-}
-}
+  if (!(is.null(z) || is.null(groups))) {
+    nj <- c(as.data.frame(table(groups))[, 2]) # obs per subject
+    for (j in 1:length(nj)) {
+      z1 <- matrix(z[(sum(nj[1:j - 1]) + 1):(sum(nj[1:j])), ],
+        ncol = dim(z)[2]
+      )
 
-pred = fixed + random  #predictions
+      random[(sum(nj[1:j - 1]) + 1):(sum(nj[1:j]))] <-
+        tcrossprod(z1, t(weights[j, ]))
+    }
+  }
 
-pred
+  pred <- fixed + random # predictions
+
+  pred
 }
 ```
 
 
 ```{r}
-pred_qrlmm_1 <- lapply(model, predict_qrlmm, x, z, groups)
-pred_qrlmm_0 <- lapply(model, predict_qrlmm, x)
+pred_qrlmm_1 <- lapply(fit_qrlmm, predict_qrlmm, x, z, groups)
+pred_qrlmm_0 <- lapply(fit_qrlmm, predict_qrlmm, x)
 ```
+
+```{r}
+update_geom_defaults("line", list(size = 1.2, alpha = .6))
+```
+
+### Estimativas por indivíduo
+
+```{r}
+ggplot(Orthodont, aes(age, distance)) +
+  geom_line() +
+  {
+    purrr::map2(
+      pred_qrlmm_1, as.character(taus),
+      ~ geom_line(aes(y = .x, color = .y))
+    )
+  } +
+  facet_wrap(~Subject) +
+  labs(color = TeX("$\\tau$"))
+```
+
+### Estimativas populacionais por sexo
+
+```{r}
+ggplot(Orthodont, aes(age, distance, group = Subject)) +
+  geom_line(alpha = .3, linetype = 2) +
+  {
+    purrr::map2(
+      pred_qrlmm_0, as.character(taus),
+      ~ geom_line(aes(y = .x, color = .y))
+    )
+  } +
+  facet_wrap(~Sex) +
+  labs(color = TeX("$\\tau$")) +
+  theme_bw()
+```
+
+
 
 
 ## Pacote `lqmm`
 
+- Ajusta modelo de regressão quantílica utilizando o método do gradiente
+
+Argumentos da função `lqmm(fixed, random, group, tau = 0.5)`:
+
+- `fixed` fórmula para os efeitos fixos
+- `random` fórmula para os efeitos aleatórios
+- `group` fator definindo a partição dos efeitos aleatórios de dimensão $N$
+- `tau` define o quantil ajustado
+
 ## Ajuste do modelo para os quartis utilizando o pacote `lqmm`
+
+```{r}
+fit.lqmm <- lqmm(distance ~ age + Sex,
+  random = ~age, group = Subject,
+  tau = taus, data = Orthodont
+)
+
+summary(fit.lqmm)
+```
+
+## Predição para `lqmm`
+
+```{r}
+# Estimativa populacional
+pred_lqmm_0 <- predict(fit.lqmm, level = 0)
+# Estimativa individual
+pred_lqmm_1 <- predict(fit.lqmm, level = 1)
+```
+
+### Estimativas por indivíduo
+
+```{r}
+ggplot(Orthodont, aes(age, distance)) +
+  geom_line() +
+  {
+    purrr::imap(
+      as_tibble(pred_lqmm_1),
+      ~ geom_line(aes(y = .x, color = .y))
+    )
+  } +
+  facet_wrap(~Subject) +
+  labs(color = TeX("$\\tau$"))
+```
+
+### Estimativas populacionais por sexo
+
+```{r}
+ggplot(Orthodont, aes(age, distance, group = Subject)) +
+  geom_line(alpha = .3, linetype = 2) +
+  {
+    purrr::imap(
+      as_tibble(pred_lqmm_0),
+      ~ geom_line(aes(y = .x, color = .y))
+    )
+  } +
+  facet_wrap(~Sex) +
+  labs(color = TeX("$\\tau$")) +
+  theme_bw()
+```
+
+### Estimativas por quantil
+
+```{r}
+p1 <- qplot(taus, coef(fit.lqmm)[1, ], geom = "line") +
+  labs(x = TeX("$\\tau$"), y = "Estimate", title = "Intercept")
+p2 <- qplot(taus, coef(fit.lqmm)[2, ], geom = "line") +
+  labs(x = TeX("$\\tau$"), y = "Estimate", title = "Age")
+p3 <- qplot(taus, coef(fit.lqmm)[3, ], geom = "line") +
+  labs(x = TeX("$\\tau$"), y = "Estimate", title = "SexFemale")
+
+grid.arrange(p1, p2, p3)
+```
+
 
 ## Comparação de ajuste
 
-## Gráfico de perfil com quantis
+```{r}
+purrr::map_df(list(
+  "qrLMM Nível 0" = pred_qrlmm_0,
+  "qrLMM Nível 1" = pred_qrlmm_1,
+  "lqmm Nível 0" = pred_lqmm_0,
+  "lqmm Nível 1" = pred_lqmm_1
+), function(pred) {
+  res <- sapply(pred, function(x) {
+    y - x
+  })
+  erro <- colMeans(sapply(taus, rho_tau, u = res))
+  names(erro) <- taus
+  erro
+}, .id = "Método")
+```
+
+
+
+
 
 ## Referências
 
 ```{r refs, echo=FALSE, results='asis'}
+NoCite(bib, "lqmm")
 PrintBibliography(bib)
 ```
-
