@@ -37,13 +37,15 @@ theme_set(theme_bw())
 
 ## Exemplo de robustez da regressão quantílica
 
+Dados de 235 observações sobre o gasto em alimentação e renda em casas Belgas.
+
 ```{r}
 data("engel")
 
 engel
 ```
 
-Gasto em comida muito acima dos outros
+Gasto em comida muito acima dos demais
 ```{r}
 engel %>% filter(foodexp > 2000)
 ```
@@ -141,6 +143,8 @@ Segundo `r Citet(bib, "qrlmm")` o resíduo tem uma distribuição $\mbox{ALD}(0,
 
 
 ## Exemplo com o banco de dados `Orthodont`
+
+Dados referentes a medidas ortodônticas em crianças.
 
 ```{r}
 data("Orthodont")
